@@ -1,0 +1,32 @@
+name: Type Check
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# Mobile app is NOT deployed automatically.
+# Build and submit to stores manually using EAS CLI when ready:
+#   eas build --platform android --profile production
+#   eas build --platform ios --profile production
+#   eas submit --platform android
+#   eas submit --platform ios
+
+jobs:
+  check:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
