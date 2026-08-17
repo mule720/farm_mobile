@@ -1,14 +1,48 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme, shadow } from '../lib/theme';
 import { AppHeader } from '../components/Header';
 import { Card, SectionTitle, Badge, ProgressBar, GhostButton } from '../components/UI';
 import { useBatches, broilerFeedTable, piggeryFeedTable, getBroilerRecommendation, getPiggeryRecommendation, formatK } from '../lib/data';
+import { supabase } from '../lib/supabase';
+
+type WebCycle = {
+  id: string;
+  org_id: string;
+  enterprise_id: string;
+  name: string | null;
+  status: string | null;
+  start_date: string | null;
+  species: string | null;
+  batch_size: number | null;
+  stage_count: number | null;
+  updated_at: string;
+};
 
 export default function SmartFeed() {
   const [filter, setFilter] = useState<'all' | 'Broilers' | 'Piggery' | 'Fish' | 'Ducks' | 'Goats'>('all');
   const { data: batches, loading, refresh } = useBatches();
+
+  // Web Production Cycles state
+  const [webCycles, setWebCycles] = useState<WebCycle[]>([]);
+  const [webLoading, setWebLoading] = useState(false);
+  const [webExpanded, setWebExpanded] = useState(true);
+
+  const loadWebCycles = useCallback(async () => {
+    setWebLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('agronexus_active_cycles')
+        .select('*')
+        .order('updated_at', { ascending: false });
+      if (!error && data) setWebCycles(data as WebCycle[]);
+    } finally {
+      setWebLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadWebCycles(); }, [loadWebCycles]);
 
   const filtered = useMemo(() => filter === 'all' ? batches : batches.filter(b => b.enterprise === filter), [filter, batches]);
 
@@ -219,6 +253,57 @@ export default function SmartFeed() {
           ))}
         </Card>
 
+        {/* Web Production Cycles */}
+        <Pressable onPress={() => setWebExpanded(p => !p)} style={styles.webSectionHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="globe-outline" size={16} color={theme.colors.primary} />
+            <Text style={styles.webSectionTitle}>Web Production Cycles</Text>
+            {webCycles.length > 0 && (
+              <View style={styles.webBadge}><Text style={styles.webBadgeTxt}>{webCycles.length}</Text></View>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {webLoading
+              ? <ActivityIndicator size="small" color={theme.colors.primary} />
+              : <Pressable onPress={loadWebCycles} hitSlop={8}>
+                  <Ionicons name="refresh" size={16} color={theme.colors.primary} />
+                </Pressable>
+            }
+            <Ionicons name={webExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={theme.colors.textMuted} />
+          </View>
+        </Pressable>
+
+        {webExpanded && (
+          webCycles.length === 0 && !webLoading
+            ? <Card style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <Ionicons name="leaf-outline" size={32} color={theme.colors.textMuted} />
+                <Text style={{ color: theme.colors.textMuted, marginTop: 8, fontSize: 13 }}>No active web cycles found</Text>
+              </Card>
+            : webCycles.map(wc => (
+                <Card key={wc.id} style={{ marginBottom: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <View style={[styles.batchIcon, { backgroundColor: theme.colors.primary + '20' }]}>
+                      <Ionicons name="leaf" size={18} color={theme.colors.primary} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.batchTitle}>{wc.name ?? 'Unnamed Cycle'}</Text>
+                      <Text style={styles.batchSub}>
+                        {wc.enterprise_id ? `Enterprise: ${wc.enterprise_id.slice(0, 8)}…` : 'No enterprise'}
+                        {wc.species ? ` · ${wc.species}` : ''}
+                      </Text>
+                    </View>
+                    <Badge label="active" color={theme.colors.success} />
+                  </View>
+                  <View style={styles.recGrid}>
+                    <RecBox icon="layers" label="Stages" value={wc.stage_count != null ? String(wc.stage_count) : '—'} />
+                    <RecBox icon="paw" label="Batch size" value={wc.batch_size != null ? wc.batch_size.toLocaleString() : '—'} highlight />
+                    <RecBox icon="calendar" label="Start date" value={wc.start_date ?? '—'} />
+                    <RecBox icon="time" label="Updated" value={new Date(wc.updated_at).toLocaleDateString()} />
+                  </View>
+                </Card>
+              ))
+        )}
+
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>
@@ -292,4 +377,8 @@ const styles = StyleSheet.create({
   insightIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   insightTitle: { fontSize: 13, fontWeight: '800', color: theme.colors.text },
   insightMsg: { fontSize: 12, color: theme.colors.textMuted, marginTop: 2, lineHeight: 16 },
+  webSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 4, marginTop: 4, marginBottom: 8 },
+  webSectionTitle: { fontSize: 14, fontWeight: '800', color: theme.colors.text },
+  webBadge: { backgroundColor: theme.colors.primary, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  webBadgeTxt: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });

@@ -6,6 +6,7 @@ import { AppHeader } from '../components/Header';
 import { Card, KpiCard, SectionTitle, Badge, ProgressBar, PrimaryButton, GhostButton, HBar } from '../components/UI';
 import { useCustomers, useSales, useEmployees, monthlyFinancials, enterpriseProfit, formatK, alerts } from '../lib/data';
 import { useAuth } from '../lib/auth';
+import { NewSaleModal } from '../components/Modals';
 
 type ViewKey = 'menu' | 'sales' | 'finance' | 'hr' | 'reports' | 'export' | 'biosecurity' | 'assets';
 
@@ -23,7 +24,7 @@ export default function More() {
 }
 
 function Menu({ setView }: { setView: (v: ViewKey) => void }) {
-  const { user, profile, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const items = [
     { key: 'sales', icon: 'cart', label: 'Sales & Customers', color: theme.colors.success, sub: 'Orders, deliveries, CRM' },
     { key: 'finance', icon: 'wallet', label: 'Financial Management', color: theme.colors.primary, sub: 'P&L, budgets, payroll' },
@@ -46,8 +47,8 @@ function Menu({ setView }: { setView: (v: ViewKey) => void }) {
                 <Ionicons name="person" size={22} color="#fff" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.menuLabel}>{profile?.full_name || user.email}</Text>
-                <Text style={styles.menuSub}>{profile?.role || 'Farmhand'} · {user.email}</Text>
+                <Text style={styles.menuLabel}>{user.fullName || user.username}</Text>
+                <Text style={styles.menuSub}>{user.role || 'Farmhand'} · {user.email}</Text>
               </View>
               <Badge label="Signed in" color={theme.colors.success} />
             </View>
@@ -77,7 +78,7 @@ function Menu({ setView }: { setView: (v: ViewKey) => void }) {
 
         <SectionTitle title="System" />
         {[
-          { icon: 'person-circle', label: 'My Profile', sub: profile ? `${profile.full_name} · ${profile.role}` : 'Sign in to view profile' },
+          { icon: 'person-circle', label: 'My Profile', sub: user ? `${user.fullName} · ${user.role}` : 'Sign in to view profile' },
           { icon: 'shield-checkmark', label: 'User Roles & Permissions', sub: '9 roles configured' },
           { icon: 'cloud-upload', label: 'Backup & Sync', sub: 'Last sync: 12 minutes ago' },
           { icon: 'phone-portrait', label: 'Mobile App Settings', sub: 'Offline mode, GPS, push' },
@@ -135,7 +136,8 @@ function BackHeader({ title, subtitle, back }: { title: string; subtitle: string
 
 function SalesView({ back }: { back: () => void }) {
   const { data: customers, loading: cl } = useCustomers();
-  const { data: recentSales, loading: sl } = useSales();
+  const { data: recentSales, loading: sl, refresh: refreshSales } = useSales();
+  const [showSale, setShowSale] = useState(false);
   const totalSales = (recentSales || []).reduce((s, r) => s + r.total, 0);
   const outstanding = (customers || []).reduce((s, c) => s + c.balance, 0);
 
@@ -151,7 +153,7 @@ function SalesView({ back }: { back: () => void }) {
         </View>
 
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-          <PrimaryButton label="New Order" icon="add-circle" onPress={() => Alert.alert('New Order', 'Create new sales order.')} style={{ flex: 1 }} />
+          <PrimaryButton label="New Order" icon="add-circle" onPress={() => setShowSale(true)} style={{ flex: 1 }} />
           <GhostButton label="Invoice" icon="receipt" onPress={() => Alert.alert('Invoice', 'Generate invoice.')} />
         </View>
 
@@ -193,6 +195,8 @@ function SalesView({ back }: { back: () => void }) {
         ))}
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      <NewSaleModal visible={showSale} onClose={() => setShowSale(false)} onSuccess={refreshSales} />
     </View>
   );
 }

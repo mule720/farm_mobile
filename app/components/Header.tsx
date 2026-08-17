@@ -7,12 +7,12 @@ import { useAuth } from '../lib/auth';
 import { AuthModal } from './AuthModal';
 
 export function AppHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
 
   const initials = (() => {
-    if (!profile?.full_name && !user?.email) return 'AF';
-    const src = profile?.full_name || user?.email || '';
+    if (!user) return 'AF';
+    const src = user.fullName || user.username || user.email || '';
     const parts = src.replace(/@.*/, '').split(/\s+|\.|_/).filter(Boolean);
     return ((parts[0]?.[0] || 'A') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase().slice(0, 2);
   })();

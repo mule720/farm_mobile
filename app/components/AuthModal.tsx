@@ -8,47 +8,53 @@ import { useAuth } from '../lib/auth';
 export function AuthModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [orgName, setOrgName] = useState('');
   const [role, setRole] = useState('Farmhand');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   const reset = () => {
-    setEmail(''); setPassword(''); setFullName(''); setRole('Farmhand');
+    setPhone(''); setEmail(''); setPassword(''); setFullName(''); setOrgName(''); setRole('Farmhand');
     setErr(null); setInfo(null);
   };
 
   const handle = async () => {
     setErr(null); setInfo(null);
-    if (!email || !password) { setErr('Email and password are required.'); return; }
-    if (mode === 'signup' && !fullName.trim()) { setErr('Full name is required.'); return; }
-    if (password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
-
-    setBusy(true);
-    try {
-      if (mode === 'signin') {
-        const res = await signIn(email, password);
+    if (mode === 'signin') {
+      // Sign-in: use phone OR email as identifier
+      const identifier = phone.trim() || email.trim();
+      if (!identifier || !password) { setErr('Phone/email and password are required.'); return; }
+      setBusy(true);
+      try {
+        const res = await signIn(identifier, password);
         if (res.error) { setErr(res.error); return; }
-        reset();
-        onClose();
-      } else {
-        const res = await signUp(email, password, fullName.trim(), role);
+        reset(); onClose();
+      } finally { setBusy(false); }
+    } else {
+      // Sign-up: phone mandatory, email optional
+      if (!phone.trim()) { setErr('Phone number is required.'); return; }
+      if (!fullName.trim()) { setErr('Full name is required.'); return; }
+      if (!orgName.trim()) { setErr('Farm / organisation name is required.'); return; }
+      if (!password) { setErr('Password is required.'); return; }
+      if (password.length < 8) { setErr('Password must be at least 8 characters.'); return; }
+      setBusy(true);
+      try {
+        const res = await signUp(
+          phone.trim(),
+          email.trim() || undefined,
+          password,
+          fullName.trim(),
+          orgName.trim(),
+          role.toLowerCase().replace(/ /g, '_'),
+        );
         if (res.error) { setErr(res.error); return; }
-        // Try immediate sign-in (works when email confirmation is off, which is the default for this project).
-        const si = await signIn(email, password);
-        if (si.error) {
-          setInfo('Account created. Please check your email to confirm, then sign in.');
-          setMode('signin');
-        } else {
-          reset();
-          onClose();
-        }
-      }
-    } finally {
-      setBusy(false);
+        reset(); onClose();
+      } finally { setBusy(false); }
     }
   };
 
@@ -87,7 +93,7 @@ export function AuthModal({ visible, onClose }: { visible: boolean; onClose: () 
 
             {mode === 'signup' && (
               <>
-                <Text style={styles.lbl}>Full name</Text>
+                <Text style={styles.lbl}>Full name *</Text>
                 <TextInput
                   value={fullName}
                   onChangeText={setFullName}
@@ -95,7 +101,14 @@ export function AuthModal({ visible, onClose }: { visible: boolean; onClose: () 
                   placeholderTextColor={theme.colors.textSubtle}
                   style={styles.input}
                 />
-
+                <Text style={styles.lbl}>Farm / Organisation *</Text>
+                <TextInput
+                  value={orgName}
+                  onChangeText={setOrgName}
+                  placeholder="e.g. Green Valley Farm"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  style={styles.input}
+                />
                 <Text style={styles.lbl}>Role</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} style={{ marginBottom: 10 }}>
                   {['Director', 'General Manager', 'Production Manager', 'Finance Manager', 'Sales Manager', 'Supervisor', 'Veterinary Officer', 'Farmhand', 'Driver'].map(r => (
@@ -111,16 +124,45 @@ export function AuthModal({ visible, onClose }: { visible: boolean; onClose: () 
               </>
             )}
 
-            <Text style={styles.lbl}>Email</Text>
+            <Text style={styles.lbl}>{mode === 'signin' ? 'Phone or Email' : 'Phone number *'}</Text>
             <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@afrivera.com"
+              value={phone}
+              onChangeText={setPhone}
+              placeholder={mode === 'signin' ? '+260 97x xxx xxx or email' : '+260 97x xxx xxx'}
               placeholderTextColor={theme.colors.textSubtle}
               autoCapitalize="none"
-              keyboardType="email-address"
+              keyboardType="phone-pad"
               style={styles.input}
             />
+
+            {mode === 'signup' && (
+              <>
+                <Text style={styles.lbl}>Email (optional)</Text>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@farm.com — leave blank if none"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  style={styles.input}
+                />
+              </>
+            )}
+            {mode === 'signin' && (
+              <>
+                <Text style={styles.lbl}>Or Email</Text>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@farm.com"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  style={styles.input}
+                />
+              </>
+            )}
 
             <Text style={styles.lbl}>Password</Text>
             <TextInput
