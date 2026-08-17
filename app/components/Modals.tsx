@@ -122,10 +122,10 @@ export function NewBatchModal({ visible, onClose, onSuccess }: {
     if (!house.trim()) { Alert.alert('Required', 'House / location is required.'); return; }
     const tw = parseFloat(targetWt) || DEFAULT_TARGET[enterprise];
 
-    // Range validation
+    // Range validation — target weight uses species-specific limits
     const cntErr = checkRange('initialCount', cnt);
     if (cntErr) { Alert.alert('Value out of range', cntErr); return; }
-    const twErr = checkRange('targetWeightKg', tw);
+    const twErr = checkRange('targetWeightKg', tw, enterprise);
     if (twErr) { Alert.alert('Value out of range', twErr); return; }
 
     setSaving(true);
@@ -163,14 +163,36 @@ const RANGES: Record<string, [number, number, string]> = {
   mortality:      [0, 5000,   'Mortality'],
   feedKg:         [0, 50000,  'Feed (kg)'],
   waterL:         [0, 200000, 'Water (L)'],
-  avgWeightKg:    [0.001, 300, 'Average weight (kg)'],
-  targetWeightKg: [0.001, 500, 'Target weight (kg)'],
+  avgWeightKg:    [0.001, 350, 'Average weight (kg)'],   // generic — overridden per-species below
+  targetWeightKg: [0.001, 350, 'Target weight (kg)'],
   initialCount:   [1, 100000, 'Initial count'],
   qty:            [0.001, 1000000, 'Quantity'],
   unitPrice:      [0.01, 1000000, 'Unit price'],
 };
 
-function checkRange(fieldKey: string, value: number): string | null {
+// Per-species weight limits (kg) — used when the batch enterprise is known
+const WEIGHT_LIMITS: Record<string, [number, number]> = {
+  'Broilers':        [0.01, 5],
+  'Village Chicken': [0.01, 5],
+  'Ducks':           [0.01, 6],
+  'Fish':            [0.001, 5],
+  'Piggery':         [0.5, 350],
+  'Goats':           [1, 120],
+  'Sheep':           [1, 150],
+};
+
+function checkRange(fieldKey: string, value: number, enterprise?: string): string | null {
+  // Weight fields get species-specific limits when enterprise is known
+  if ((fieldKey === 'avgWeightKg' || fieldKey === 'targetWeightKg') && enterprise) {
+    const limits = WEIGHT_LIMITS[enterprise];
+    if (limits) {
+      const [lo, hi] = limits;
+      if (value < lo || value > hi) {
+        return `Weight ${value} kg is outside the expected range for ${enterprise} (${lo}–${hi} kg). Did you mean ${value < 1 ? value * 1000 + ' g' : value / 1000 + ' t'}? Please check and resubmit.`;
+      }
+      return null;
+    }
+  }
   const r = RANGES[fieldKey];
   if (!r) return null;
   const [lo, hi, label] = r;
@@ -203,14 +225,14 @@ export function LivestockLogModal({ visible, onClose, onSuccess, batch }: {
     if (m === 0 && f === 0 && w === 0 && wt === 0) {
       Alert.alert('Empty log', 'Enter at least one value.'); return;
     }
-    // Range validation
+    // Range validation — weight uses species-specific limits
     const checks: Array<[string, number]> = [
       ['mortality', m], ['feedKg', f], ['waterL', w],
       ...(wt > 0 ? [['avgWeightKg', wt] as [string, number]] : []),
     ];
     for (const [k, v] of checks) {
       if (v > 0) {
-        const err = checkRange(k, v);
+        const err = checkRange(k, v, k === 'avgWeightKg' ? batch.enterprise : undefined);
         if (err) { Alert.alert('Value out of range', err); return; }
       }
     }
