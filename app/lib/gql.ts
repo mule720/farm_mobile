@@ -81,7 +81,7 @@ export const CREATE_BATCH_MUTATION = gql`
 export const PRODUCTION_RECORDS_QUERY = gql`
   query ProductionRecords($enterpriseId: ID, $batchId: ID, $limit: Int) {
     productionRecords(enterpriseId: $enterpriseId, batchId: $batchId, limit: $limit) {
-      id recordType recordDate quantity unit notes
+      id recordType recordDate data
       batch { id name } enterprise { id name }
     }
   }
